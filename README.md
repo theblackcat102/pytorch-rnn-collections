@@ -8,6 +8,7 @@ All model trained with default parameters and trained on i5-7700 with RTX 2080
 
 | Model  | training perplexity  | time (50 epochs)  |  parameters  |
 |---|---|---|---|
+| RNN  | 1.689 | 1m50s |  0.8524M |
 | LSTM [1] | 1.704  | 3m21s  |  3.3161M |
 |  GRU [2] | 1.676  | 3m2s  | 2.4949M  |
 | QRNN [3] | 1.934  | 2m21s  | 0.9190M  |
