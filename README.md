@@ -13,9 +13,12 @@ All model trained with default parameters and trained on i5-7700 with RTX 2080
 |  GRU [2] | 1.676  | 3m2s  | 2.4949M  |
 | QRNN [3] | 1.934  | 2m21s  | 0.9190M  |
 | SRU [4] | 1.72  |  1m17s | 0.9528M  |
-| Gated-CNN [5] | 1.01  | 13m  | 0.0929M  |
+| SRU-Large* [4] | 1.441  | 3m4s  | 3.4749M  |
+| Gated-CNN* [5] | 1.01  | 13m  | 0.0929M  |
 
 * I am not quite sure whether Gated-CNN implementation is correct or not
+
+* SRU-Large is 2 layer SRU with 1024 hidden dimension, other (except CNN) model only have 512 hidden dimension.
 
 [1] Long Short Term Memory
 
