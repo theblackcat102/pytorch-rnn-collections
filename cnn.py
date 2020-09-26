@@ -3,7 +3,22 @@ import torch.nn.functional as F
 from torch import nn
 from dataset import vocab_size, ImgCOCO, collate_fn
 from torch.utils.data import DataLoader
+from absl import flags, app
+from utils import set_seed, print_parameters
+from tensorboardX import SummaryWriter
+from tqdm import trange
+import os
 
+FLAGS = flags.FLAGS
+# model and training
+flags.DEFINE_integer('total_epochs', 50, "total number of training steps")
+flags.DEFINE_integer('batch_size', 128, "batch size")
+flags.DEFINE_float('lr', 2e-4, "Generator learning rate")
+flags.DEFINE_integer('num_layers', 2, "update Generator every this steps")
+flags.DEFINE_integer('hidden_dim', 64, "hidden dimension")
+flags.DEFINE_integer('seed', 0, "random seed")
+# logging
+flags.DEFINE_string('logdir', './logs/CNN_IMGCOCO', 'logging folder')
 
 class GatedCNN(nn.Module):
     '''
@@ -13,16 +28,17 @@ class GatedCNN(nn.Module):
     def __init__(self,
                  vocab_size=vocab_size,
                  embd_size=64,
-                 n_layers=2,
+                 num_layers=2,
                  kernel=(5, 5),
-                 out_chs=256,
+                 hidden_size=256,
                  res_block_count=1):
         super(GatedCNN, self).__init__()
         self.res_block_count = res_block_count
         # self.embd_size = embd_size
 
         self.embedding = nn.Embedding(vocab_size, embd_size)
-
+        out_chs = hidden_size
+        n_layers = num_layers
         # nn.Conv2d(in_channels, out_channels, kernel_size, stride=1, padding=0, ...
         self.conv_0 = nn.Conv2d(1, out_chs, kernel, padding=(2, 0))
         self.b_0 = nn.Parameter(torch.randn(1, out_chs, 1, 1))
@@ -70,22 +86,60 @@ class GatedCNN(nn.Module):
 
         return out
 
-if __name__ == "__main__":
+def train():
+
+    os.makedirs(os.path.join(FLAGS.logdir, 'sample'))
+    writer = SummaryWriter(os.path.join(FLAGS.logdir))
+
+    with open(os.path.join(FLAGS.logdir, "flagfile.txt"), 'w') as f:
+        f.write(FLAGS.flags_into_string())
+
+    writer.add_text(
+        "flagfile", FLAGS.flags_into_string().replace('\n', '  \n'))
+
     dataset = ImgCOCO()
-    train_dataloader = DataLoader(dataset, batch_size=32, shuffle=True, collate_fn=collate_fn)
-    model = GatedCNN(out_chs=128)
+
+    train_dataloader = DataLoader(dataset, batch_size=FLAGS.batch_size, shuffle=True, collate_fn=collate_fn)
+
+    model = GatedCNN(hidden_size=FLAGS.hidden_dim, num_layers=FLAGS.num_layers)
+    print_parameters(model)
+
+    model = model.cuda()
+
     criterion = nn.CrossEntropyLoss()
-    optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
+    optimizer = torch.optim.Adam(model.parameters(), lr=FLAGS.lr)
+
+    step = 0
+    for epoch in range(FLAGS.total_epochs):
+        print('[Epoch %d]' % epoch)
+        with trange(1, len(train_dataloader), dynamic_ncols=True) as pbar:
+            for batch in train_dataloader:
+                input_ids, label_ids = batch
+
+                input_ids = input_ids.cuda()
+                label_ids = label_ids.cuda()
+
+                output = model(input_ids)
+                loss = criterion(output.view(-1, vocab_size), label_ids.flatten())
+
+                model.zero_grad()
+                loss.backward()
+                optimizer.step()
+
+                writer.add_scalar("loss", loss.item(), step)
+                writer.add_scalar("perplexity", torch.exp(loss).item(), step)
+
+                step += 1
+
+                pbar.set_postfix(loss="%.4f" % loss)
+                pbar.update(1)
+
+def main(argv):
+    set_seed(FLAGS.seed)
+    train()
 
 
-    for batch in train_dataloader:
-        input_ids, label_ids = batch
-        output = model(input_ids)
-        loss = criterion(output.view(-1, vocab_size), label_ids.flatten())
-        model.zero_grad()
-        loss.backward()
-        optimizer.step()
-        print(loss.item())
-
+if __name__ == '__main__':
+    app.run(main)
 
 
